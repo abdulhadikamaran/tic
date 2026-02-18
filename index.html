@@ -245,6 +245,70 @@
             }
         }
 
+        /* Install Guide */
+        .install-guide {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+        }
+        .install-btn {
+            background: var(--highlight);
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+            transition: transform 0.2s;
+        }
+        .install-btn:hover {
+            transform: scale(1.05);
+        }
+        .install-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .install-popup.show {
+            display: flex;
+        }
+        .install-content {
+            background: var(--surface);
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 400px;
+            text-align: center;
+        }
+        .install-content h3 {
+            color: var(--highlight);
+            margin-bottom: 20px;
+        }
+        .install-step {
+            text-align: left;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+        .close-btn {
+            background: transparent;
+            color: var(--text-color);
+            border: 2px solid var(--text-color);
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
     </style>
 </head>
 <body>
@@ -273,6 +337,18 @@
 
     <button class="reset-btn" onclick="initGame()">Restart Game</button>
 
+    <!-- Install Guide -->
+    <div class="install-guide" id="install-guide">
+        <button class="install-btn" onclick="showInstallInstructions()">📱 Install App</button>
+        <div class="install-popup" id="install-popup">
+            <div class="install-content">
+                <h3>Install Tactical Tic-Tac-Toe</h3>
+                <div id="install-steps"></div>
+                <button class="close-btn" onclick="hideInstallInstructions()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- GAME VARIABLES ---
         const boardEl = document.getElementById('board');
@@ -288,11 +364,18 @@
         let isGameOver = false;
         let cells = [];
         let tutorialShown = false;
+        let audioContext = null;
 
         // --- SOUND EFFECTS ---
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
         function playSound(frequency, duration, type = 'sine') {
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (!audioContext) initAudio();
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 
@@ -326,6 +409,14 @@
             playSound(600, 0.15);
         }
 
+        function playTurnSound() {
+            playSound(400, 0.1);
+        }
+
+        function playErrorSound() {
+            playSound(200, 0.2, 'sawtooth');
+        }
+
         // --- TUTORIAL ---
         function showTutorial() {
             if (!tutorialShown) {
@@ -349,6 +440,59 @@
                 document.body.appendChild(confetti);
                 setTimeout(() => confetti.remove(), 3000);
             }
+        }
+
+        // --- INSTALL GUIDE ---
+        function showInstallInstructions() {
+            const popup = document.getElementById('install-popup');
+            const steps = document.getElementById('install-steps');
+            
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            
+            let instructions = '';
+            
+            if (isIOS) {
+                instructions = `
+                    <div class="install-step">
+                        <strong>iOS Safari:</strong><br>
+                        1. Tap the Share button (📤)<br>
+                        2. Scroll down and tap "Add to Home Screen"<br>
+                        3. Tap "Add" in the top right<br>
+                        4. The app icon will appear on your home screen!
+                    </div>
+                `;
+            } else if (isAndroid) {
+                instructions = `
+                    <div class="install-step">
+                        <strong>Android Chrome:</strong><br>
+                        1. Tap the menu (⋮) in the top right<br>
+                        2. Tap "Add to Home screen"<br>
+                        3. Tap "Add" to confirm<br>
+                        4. The app will be installed!
+                    </div>
+                `;
+            } else {
+                instructions = `
+                    <div class="install-step">
+                        <strong>Desktop Chrome/Edge:</strong><br>
+                        1. Look for the install icon in the address bar<br>
+                        2. Click it and follow the prompts<br>
+                        3. Or click menu (⋮) → "Install Tactical Tic-Tac-Toe"
+                    </div>
+                    <div class="install-step">
+                        <strong>Other Browsers:</strong><br>
+                        This PWA works best in Chrome or Edge for installation.
+                    </div>
+                `;
+            }
+            
+            steps.innerHTML = instructions;
+            popup.classList.add('show');
+        }
+
+        function hideInstallInstructions() {
+            document.getElementById('install-popup').classList.remove('show');
         }
 
         // --- INIT ---
@@ -414,6 +558,8 @@
 
         // --- INPUT HANDLER ---
         function handleInput(e, i) {
+            initAudio(); // Enable sounds on first interaction
+            
             e.preventDefault(); // Stop double firing
             
             if (isGameOver) return;
@@ -422,7 +568,10 @@
 
             // --- PHASE 1: PLACEMENT (Drop) ---
             if (myPieces < 3) {
-                if (boardState[i] !== null) return; // Must be empty
+                if (boardState[i] !== null) {
+                    playErrorSound();
+                    return; // Must be empty
+                }
 
                 // Logic
                 boardState[i] = currentPlayer;
@@ -470,6 +619,7 @@
 
         function switchTurn() {
             currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            playTurnSound();
             updateUI();
         }
 
