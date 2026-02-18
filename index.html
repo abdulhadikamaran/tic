@@ -131,6 +131,13 @@
             animation: pulse-border 1.5s infinite;
         }
 
+        /* Drop Target */
+        .cell.drop-target {
+            background: rgba(255, 215, 0, 0.1) !important;
+            border: 2px dashed var(--highlight) !important;
+            transform: scale(1.05);
+        }
+
         @keyframes pulse-border {
             0% { border-color: rgba(255,255,255,0.2); }
             50% { border-color: rgba(255,255,255,0.6); }
@@ -234,8 +241,38 @@
                 let cell = document.createElement('div');
                 cell.className = 'cell';
                 
-                // Add BOTH click and touchstart for instant response
+                // Click for placement
                 cell.addEventListener('click', (e) => handleInput(e, i));
+                
+                // Drag and drop for movement
+                cell.draggable = true;
+                cell.addEventListener('dragstart', (e) => {
+                    if (xPieces + oPieces < 6) return; // Only in move phase
+                    if (boardState[i] !== currentPlayer) return;
+                    selectedIndex = i;
+                    e.dataTransfer.setData('text', i.toString());
+                    boardEl.classList.add('dragging');
+                });
+                cell.addEventListener('dragend', () => {
+                    boardEl.classList.remove('dragging');
+                });
+                cell.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if (boardState[i] === null) {
+                        cell.classList.add('drop-target');
+                    }
+                });
+                cell.addEventListener('dragleave', () => {
+                    cell.classList.remove('drop-target');
+                });
+                cell.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    cell.classList.remove('drop-target');
+                    const from = parseInt(e.dataTransfer.getData('text'));
+                    if (boardState[i] === null && from !== i) {
+                        movePiece(from, i);
+                    }
+                });
                 
                 boardEl.appendChild(cell);
                 cells.push(cell);
@@ -264,49 +301,10 @@
                 
                 if (checkWin()) return;
                 switchTurn();
-            } 
-            
-            // --- PHASE 2: MOVEMENT (Pick Up & Move) ---
-            else {
-                const clickedContent = boardState[i];
-
-                // 1. SELECT OWN PIECE
-                if (clickedContent === currentPlayer) {
-                    if (selectedIndex === i) {
-                        deselect(); // Toggle off
-                    } else {
-                        selectPiece(i); // Select new
-                    }
-                }
-                // 2. MOVE TO EMPTY SPOT
-                else if (clickedContent === null && selectedIndex !== null) {
-                    movePiece(selectedIndex, i);
-                }
             }
         }
 
         // --- ACTIONS ---
-
-        function selectPiece(index) {
-            // Visual cleanup
-            cells.forEach(c => c.classList.remove('selected'));
-            
-            selectedIndex = index;
-            cells[index].classList.add('selected');
-            
-            // Visual hint for board
-            boardEl.classList.add('moving-mode');
-            statusEl.textContent = "Tap an empty spot!";
-            statusEl.style.color = "var(--highlight)";
-            statusEl.style.borderColor = "var(--highlight)";
-        }
-
-        function deselect() {
-            selectedIndex = null;
-            cells.forEach(c => c.classList.remove('selected'));
-            boardEl.classList.remove('moving-mode');
-            updateUI(); // Reset text
-        }
 
         function movePiece(from, to) {
             // Logic Update
@@ -316,8 +314,6 @@
             // Visual Update
             renderCell(from); // Clears old spot
             renderCell(to);   // Fills new spot
-            
-            deselect(); // Exit move mode
             
             if (checkWin()) return;
             switchTurn();
@@ -353,8 +349,10 @@
             const myPieces = currentPlayer === 'X' ? xPieces : oPieces;
             if (myPieces < 3) {
                 phaseBadge.textContent = "Phase 1: Place Pieces";
+                boardEl.classList.remove('moving-mode');
             } else {
-                phaseBadge.textContent = "Phase 2: Pick & Move";
+                phaseBadge.textContent = "Phase 2: Drag & Drop";
+                boardEl.classList.add('moving-mode');
             }
         }
 
